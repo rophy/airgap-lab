@@ -1,28 +1,24 @@
 # Air-Gap Lab
 
-Local air-gapped test environment using libvirt VM + local Docker registry.
+## kubectl Context
 
-## Stack
-
-- **libvirt/QEMU** for VM provisioning (Ubuntu 24.04 cloud image)
-- **Docker registry:2** on host port 5000
-- **airgap-br0** bridge (10.99.0.0/24) — VM's only network interface
-- VM has no internet by design; `internet.sh open` adds NAT temporarily
-
-## Key Commands
-
+No host-side kubectl context. To run commands inside the VM:
 ```bash
-./scripts/setup.sh              # Full setup (bridge, VM, registry)
-./scripts/teardown.sh           # Full teardown
-./scripts/push-image.sh IMG     # Push image to local registry
-./scripts/verify.sh             # Verify air-gap from host
-sudo ./scripts/internet.sh open  # Temporarily allow internet
-sudo ./scripts/internet.sh close # Restore air-gap
+ssh ubuntu@10.99.0.10 kubectl ...
 ```
 
-## VM Access
+## Running Commands in the VM
 
 ```bash
-ssh ubuntu@10.99.0.10           # password: ubuntu
-virsh console airgap-lab        # serial console
+ssh -o StrictHostKeyChecking=no -o BatchMode=yes ubuntu@10.99.0.10 "<command>"
 ```
+
+VM IP is `BRIDGE_VM_IP` from `config.sh` (default `10.99.0.10`).
+
+## Sudo
+
+Only `scripts/internet.sh` requires sudo. All other scripts run unprivileged (user must be in `libvirt` group).
+
+## Templates
+
+Files in `vm/` use placeholder tokens (e.g., `BRIDGE_HOST_IP`, `REGISTRY_HOSTNAME`) that are substituted by `create-vm.sh` and `setup.sh` at runtime via `sed`.

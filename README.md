@@ -4,77 +4,129 @@ Air-gapped environment lab for testing container workloads without internet acce
 
 ## Overview
 
-Simulates a corporate air-gapped environment using:
-- **libvirt/QEMU** VM attached only to an isolated bridge network
-- **Local Docker registry** on host (simulates corporate registry)
-- **Dedicated bridge** (`airgap-br0`) — VM has no internet path by design
+Simulates a corporate air-gapped network using:
+- **libvirt VM** attached only to an isolated bridge — no internet path by design
+- **Docker registry** on host — simulates a corporate container registry
+- **apt-cacher-ng** on host — proxies/caches apt packages for the VM
+- **DNS via dnsmasq** — resolves `registry.airgap` and `apt-proxy.airgap` to the host
+
+No sudo required for setup or teardown (user must be in `libvirt` group).
 
 ## Prerequisites
 
-- libvirt, QEMU, virt-install
-- cloud-image-utils (`cloud-localds`)
-- Docker with compose
+```bash
+# Required packages
+sudo apt install qemu-kvm libvirt-daemon-system virtinst cloud-image-utils
+
+# Add yourself to the libvirt group (re-login after)
+sudo usermod -aG libvirt $USER
+
+# Docker with compose plugin
+```
 
 ## Quick Start
 
 ```bash
-# Set up everything (bridge, VM, registry)
+# Set up everything (network, VM, registry, apt cache)
 ./scripts/setup.sh
 
-# SSH into the isolated VM
-ssh ubuntu@10.99.0.10   # password: ubuntu
-
-# Verify air-gap isolation (from host)
+# Verify air-gap isolation
 ./scripts/verify.sh
+
+# SSH into the VM
+ssh ubuntu@10.99.0.10
+```
+
+## What Works Inside the VM
+
+```bash
+# DNS resolves (via host dnsmasq)
+nslookup google.com         # works
+curl https://google.com     # blocked (no internet)
+
+# Docker registry
+docker pull registry.airgap:5000/myapp:v1.2.3
+
+# apt packages (via apt-cacher-ng proxy)
+sudo apt-get update && sudo apt-get install -y vim
+```
+
+## Pushing Images to the Registry
+
+From the host:
+
+```bash
+# Single image
+./scripts/push-image.sh nginx:1.25
+
+# Bulk from a list
+echo "nginx:1.25" >> images/required.txt
+echo "redis:7" >> images/required.txt
+./scripts/load-images.sh
+```
+
+Inside the VM:
+
+```bash
+docker pull registry.airgap:5000/nginx:1.25
+```
+
+## Temporarily Allowing Internet
+
+```bash
+# Open (adds NAT — only operation requiring sudo)
+sudo ./scripts/internet.sh open
+
+# Close (removes NAT, restores air-gap)
+sudo ./scripts/internet.sh close
 ```
 
 ## Configuration
 
-Edit `config.sh` to customize:
+Edit `config.sh` to customize. All values are overridable via environment variables.
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+|---|---|---|
 | `VM_NAME` | `airgap-lab` | libvirt VM name |
-| `BRIDGE_NAME` | `airgap-br0` | Dedicated bridge interface |
-| `BRIDGE_HOST_IP` | `10.99.0.1` | Host IP on the bridge |
+| `BRIDGE_NAME` | `airgap-br0` | Bridge interface |
+| `BRIDGE_HOST_IP` | `10.99.0.1` | Host IP on bridge |
+| `BRIDGE_VM_IP` | `10.99.0.10` | VM IP on bridge |
 | `REGISTRY_PORT` | `5000` | Docker registry port |
+| `REGISTRY_HOSTNAME` | `registry.airgap` | Registry hostname |
+| `APT_CACHE_PORT` | `3142` | apt-cacher-ng port |
+| `APT_CACHE_HOSTNAME` | `apt-proxy.airgap` | apt proxy hostname |
 | `VM_CPUS` | `1` | VM CPU cores |
 | `VM_MEMORY` | `8192` | VM memory (MiB) |
 | `VM_DISK` | `40` | VM disk (GiB) |
+
+## Teardown
+
+```bash
+./scripts/teardown.sh
+```
+
+Removes VM, libvirt network, and stops services. Prompts to remove data volumes.
 
 ## Project Structure
 
 ```
 airgap-lab/
-├── config.sh                # Central configuration
-├── docker-compose.yaml      # Local registry (port 5000)
+├── config.sh                   # Central configuration
+├── docker-compose.yaml         # Registry + apt-cache
 ├── images/
-│   └── required.txt         # Images to pre-load
+│   └── required.txt            # Images to pre-load
 ├── vm/
-│   ├── cloud-init.yaml      # VM provisioning config
-│   ├── network-config.yaml  # Static IP on airgap bridge
-│   └── create-vm.sh         # VM creation (virt-install)
+│   ├── cloud-init.yaml         # VM provisioning template
+│   ├── network-config.yaml     # VM static IP template
+│   ├── network.xml             # Libvirt network template
+│   └── create-vm.sh            # VM creation (virt-install)
 └── scripts/
-    ├── setup.sh             # Full environment setup
-    ├── teardown.sh          # Full environment teardown
-    ├── internet.sh          # Toggle internet: open/close
-    ├── verify.sh            # Verify air-gap isolation
-    ├── load-images.sh       # Bulk load images to registry
-    └── push-image.sh        # Push single image to registry
+    ├── setup.sh                # Full setup
+    ├── teardown.sh             # Full teardown
+    ├── internet.sh             # Toggle internet (sudo)
+    ├── verify.sh               # Verify air-gap
+    ├── load-images.sh          # Bulk image push
+    └── push-image.sh           # Single image push
 ```
 
-## Day-to-Day Usage
-
-```bash
-# Push a new image to the air-gapped environment (from host)
-./scripts/push-image.sh myapp:v1.2.3
-
-# Inside VM: pull it
-docker pull registry.airgap:5000/myapp:v1.2.3
-
-# Temporarily allow internet (e.g., to install packages)
-sudo ./scripts/internet.sh open
-
-# Restore air-gap
-sudo ./scripts/internet.sh close
-```
+See [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for architecture details and design decisions.

@@ -3,278 +3,261 @@
 ## Goal
 
 Create a local air-gapped test environment that mirrors a corporate network:
-- No public internet access
-- Internal DNS works
+- No public internet access from the VM
+- DNS resolution works (via host-side dnsmasq)
 - A corporate Docker registry is the only image source
-- Kubernetes (kind/minikube) runs inside the isolated VM
+- An apt proxy allows package installation without direct internet
+- Internet access can be temporarily enabled when needed
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Host Machine                                   │
-│                                                 │
-│  ┌──────────────┐                               │
-│  │ Docker       │                               │
-│  │ Registry     │  :5000                        │
-│  │ (corporate   │◄─────────────────────┐        │
-│  │  simulator)  │                      │        │
-│  └──────────────┘                      │        │
-│                                        │        │
-│  ┌─────────────────────────────────────┼──────┐ │
-│  │ Multipass VM (Ubuntu)               │      │ │
-│  │                                     │      │ │
-│  │  iptables: deny all egress          │      │ │
-│  │  except:                            │      │ │
-│  │    - host registry (IP:5000)        │      │ │
-│  │    - DNS (53/udp, 53/tcp)           │      │ │
-│  │                                     │      │ │
-│  │  ┌───────────┐  ┌────────────────┐  │      │ │
-│  │  │  Docker   │  │ kind/minikube  │  │      │ │
-│  │  │  (pulls   │  │ (uses registry │  │      │ │
-│  │  │  from     │  │  mirror)       │  │      │ │
-│  │  │  registry)│  │                │  │      │ │
-│  │  └───────────┘  └────────────────┘  │      │ │
-│  └─────────────────────────────────────┴──────┘ │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Host Machine                                               │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐                         │
+│  │ Docker       │  │ apt-cacher-ng│                         │
+│  │ Registry     │  │ (apt proxy)  │                         │
+│  │ :5000        │  │ :3142        │                         │
+│  └──────┬───────┘  └──────┬───────┘                         │
+│         │                 │                                 │
+│         │  0.0.0.0 port binding (accessible on all IPs)     │
+│         │                 │                                 │
+│  ┌──────┴─────────────────┴──────────────────────────────┐  │
+│  │ airgap-br0 (10.99.0.1/24)                             │  │
+│  │ Libvirt isolated network — no NAT, no forwarding      │  │
+│  │                                                       │  │
+│  │ dnsmasq:                                              │  │
+│  │   - forwards DNS to 8.8.8.8 / 8.8.4.4                │  │
+│  │   - resolves registry.airgap → 10.99.0.1              │  │
+│  │   - resolves apt-proxy.airgap → 10.99.0.1             │  │
+│  │                                                       │  │
+│  │  ┌─────────────────────────────────────────────────┐  │  │
+│  │  │ VM (10.99.0.10)                    Ubuntu 24.04 │  │  │
+│  │  │                                                 │  │  │
+│  │  │ - Docker (insecure-registries: registry.airgap) │  │  │
+│  │  │ - apt proxy: http://apt-proxy.airgap:3142       │  │  │
+│  │  │ - DNS: 10.99.0.1 (host dnsmasq)                │  │  │
+│  │  │ - No internet (no NAT on bridge)                │  │  │
+│  │  └─────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Components to Build
+## Design Decisions
 
-### 1. Local Docker Registry (Host)
+### Why libvirt instead of multipass?
 
-**Directory:** `registry/`
+Multipass always creates a default NAT interface that provides internet access. This can't be disabled — the `--network` flag only adds additional interfaces. Root inside the VM could change routes to bypass any host-side firewall rules.
 
-- `docker-compose.yml` to run a registry:2 container on port 5000
-- Persistent volume for image storage
-- Optional: basic auth or TLS (skip for simplicity initially)
-- Script to pre-load images: pull from Docker Hub, retag, push to local registry
+With libvirt, the VM is attached **only** to our isolated bridge. There is no internet path by design — no firewall rules needed.
 
-**Example image list to pre-load:**
-- `kindest/node:<version>` (for kind)
-- `registry.k8s.io/pause:3.9`
-- `registry.k8s.io/coredns/coredns:v1.11.1`
-- `registry.k8s.io/etcd:3.5.12-0`
-- `registry.k8s.io/kube-apiserver:<version>`
-- `registry.k8s.io/kube-controller-manager:<version>`
-- `registry.k8s.io/kube-scheduler:<version>`
-- `registry.k8s.io/kube-proxy:<version>`
-- Any application images needed for testing
+### Why a libvirt network instead of a manual bridge?
 
-**Script:** `scripts/load-images.sh`
-- Takes an image list file as input
-- Pulls each image from upstream
-- Retags as `<host-ip>:5000/<image>`
-- Pushes to local registry
+A libvirt network definition (`vm/network.xml`) manages the bridge, dnsmasq, and DNS entries in one place. Benefits:
+- No manual `ip link` / `iptables` commands
+- dnsmasq provides DNS forwarding (VM gets DNS without internet)
+- Custom hostnames (`registry.airgap`, `apt-proxy.airgap`) via dnsmasq
+- No sudo needed (user in `libvirt` group)
+- Clean lifecycle via `virsh net-define/start/destroy/undefine`
 
-### 2. Multipass VM Provisioning
+### Why DNS hostnames instead of IPs?
 
-**Directory:** `vm/`
+The VM references services by hostname (`registry.airgap:5000`, `apt-proxy.airgap:3142`) instead of the bridge IP. If the subnet changes, only `config.sh` and the network definition need updating — not the VM's internal config.
 
-- `cloud-init.yaml` - cloud-init config for the VM
-- `create-vm.sh` - wrapper script to launch the VM
+### Why apt-cacher-ng?
 
-**VM specs (configurable):**
-- 4 CPU, 8GB RAM, 40GB disk (adjust as needed)
-- Ubuntu 22.04 or 24.04
+The VM can't reach the internet for `apt install`. Rather than requiring `internet.sh open` every time, apt-cacher-ng runs on the host and proxies/caches packages. The VM's apt config points to `http://apt-proxy.airgap:3142`. The host fetches packages from the internet and caches them.
 
-**cloud-init should install:**
-- docker.io / containerd
-- kind
-- kubectl
-- helm (if needed)
-- Any other CLI tools
+### Sudo requirements
 
-**cloud-init should configure:**
-- Docker daemon to use the host registry as mirror (`/etc/docker/daemon.json`)
-- containerd registry mirror config
-- Mark the host registry as insecure (HTTP, no TLS)
+| Operation | Sudo needed? |
+|---|---|
+| `setup.sh` | No (user in `libvirt` group) |
+| `teardown.sh` | No |
+| `verify.sh` | No |
+| `push-image.sh` | No |
+| `internet.sh open/close` | **Yes** (iptables NAT) |
 
-### 3. Network Isolation (Firewall)
+## Components
 
-**Script:** `scripts/lockdown.sh` (runs inside the VM)
+### 1. Central Configuration (`config.sh`)
 
-iptables rules to apply inside the VM:
+All scripts source `config.sh`. Key settings:
 
 ```bash
-# Get host/gateway IP (multipass bridge)
-HOST_IP=$(ip route | grep default | awk '{print $3}')
+VM_NAME=airgap-lab
+BRIDGE_NAME=airgap-br0
+BRIDGE_HOST_IP=10.99.0.1
+BRIDGE_VM_IP=10.99.0.10
 REGISTRY_PORT=5000
-
-# Flush existing rules
-iptables -F OUTPUT
-
-# Allow loopback
-iptables -A OUTPUT -o lo -j ACCEPT
-
-# Allow established/related connections
-iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# Allow DNS (UDP and TCP)
-iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
-
-# Allow access to host registry
-iptables -A OUTPUT -d $HOST_IP -p tcp --dport $REGISTRY_PORT -j ACCEPT
-
-# Allow multipass communication (needed for VM management)
-iptables -A OUTPUT -d $HOST_IP -p tcp --dport 22 -j ACCEPT
-
-# Drop everything else
-iptables -A OUTPUT -j DROP
+REGISTRY_HOSTNAME=registry.airgap
+APT_CACHE_PORT=3142
+APT_CACHE_HOSTNAME=apt-proxy.airgap
+DNS_SERVER_1=8.8.8.8
+DNS_SERVER_2=8.8.4.4
+VM_CPUS=1
+VM_MEMORY=8192        # MiB
+VM_DISK=40            # GiB
 ```
 
-**Script:** `scripts/unlock.sh` (runs inside the VM, for temporarily disabling isolation)
+All values are overridable via environment variables.
 
-```bash
-iptables -F OUTPUT
-iptables -A OUTPUT -j ACCEPT
+### 2. Libvirt Network (`vm/network.xml`)
+
+Isolated network (no `<forward>` element = no NAT):
+
+```xml
+<network>
+  <name>airgap-lab</name>
+  <bridge name='airgap-br0'/>
+  <dns>
+    <forwarder addr='8.8.8.8'/>
+    <forwarder addr='8.8.4.4'/>
+    <host ip='10.99.0.1'>
+      <hostname>registry.airgap</hostname>
+      <hostname>apt-proxy.airgap</hostname>
+    </host>
+  </dns>
+  <ip address='10.99.0.1' netmask='255.255.255.0'/>
+</network>
 ```
 
-### 4. Kind Cluster Configuration
+- **No `<forward>`** → libvirt creates no NAT/masquerade rules
+- **`<dns><forwarder>`** → dnsmasq forwards DNS queries to Google DNS (dnsmasq runs on the host, so it has internet)
+- **`<host>`** → custom hostname resolution for services
 
-**File:** `kind/kind-config.yaml`
+### 3. Host Services (`docker-compose.yaml`)
 
-Kind needs special config to work in air-gapped mode:
-- Use the pre-loaded `kindest/node` image from the local registry
-- Configure containerd inside kind nodes to mirror all registries to the local registry
+Two containers on the host:
 
-```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-  - role: control-plane
-  - role: worker
-containerdConfigPatches:
-  - |-
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-      endpoint = ["http://<HOST_IP>:5000"]
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.k8s.io"]
-      endpoint = ["http://<HOST_IP>:5000"]
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."<HOST_IP>:5000"]
-      endpoint = ["http://<HOST_IP>:5000"]
-```
+- **registry:2** on port 5000 — Docker image registry
+- **apt-cacher-ng** on port 3142 — apt package proxy/cache
 
-Kind node image must be pre-loaded into the VM's docker before creating the cluster:
-```bash
-docker pull <HOST_IP>:5000/kindest/node:<version>
-docker tag <HOST_IP>:5000/kindest/node:<version> kindest/node:<version>
-kind create cluster --image kindest/node:<version> --config kind-config.yaml
-```
+Both bind to `0.0.0.0`, making them accessible on the bridge IP (`10.99.0.1`). Persistent volumes preserve data across restarts.
 
-### 5. Helper Scripts
+### 4. VM Provisioning
 
-**`scripts/setup.sh`** - Full setup orchestrator:
-1. Start the local registry on host
-2. Load required images into registry
-3. Create multipass VM
-4. Wait for VM to be ready
-5. Apply firewall lockdown inside VM
-6. Verify isolation (curl to internet should fail, registry should work)
+**`vm/cloud-init.yaml`** — cloud-init user-data template:
+- Installs docker.io, curl, jq
+- Configures Docker's `insecure-registries` for `registry.airgap`
+- Configures apt proxy pointing to `apt-proxy.airgap:3142`
+- Creates `ubuntu` user with password + SSH key
 
-**`scripts/teardown.sh`** - Clean everything:
-1. Delete multipass VM
-2. Stop and remove registry container
-3. Optionally remove registry volume
+**`vm/network-config.yaml`** — static IP configuration:
+- IP: `10.99.0.10/24`
+- Gateway: `10.99.0.1`
+- DNS: `10.99.0.1` (host dnsmasq)
 
-**`scripts/verify.sh`** - Run inside VM to verify air-gap:
-1. `curl https://google.com` should fail/timeout
-2. `curl http://<HOST_IP>:5000/v2/_catalog` should succeed
-3. `docker pull <HOST_IP>:5000/library/alpine` should succeed
-4. DNS resolution should work (`nslookup google.com` resolves but can't connect)
+**`vm/create-vm.sh`** — VM creation:
+1. Copies Ubuntu cloud image to `vm/disks/`
+2. Resizes disk to configured size
+3. Renders cloud-init templates (substitutes config values)
+4. Generates seed ISO via `cloud-localds`
+5. Injects host user's SSH public key
+6. Runs `virt-install` with the isolated network
+7. Waits for SSH to become available
 
-**`scripts/push-image.sh`** - Push a single image to the local registry:
-- Usage: `./push-image.sh nginx:1.25`
-- Pulls, retags, pushes to local registry
+### 5. Internet Toggle (`scripts/internet.sh`)
 
-### 6. Image List Management
+The only operation requiring sudo. Toggles NAT for the bridge subnet:
 
-**File:** `images/required.txt`
+- **`open`** — enables ip_forward, adds MASQUERADE and FORWARD rules
+- **`close`** — removes those rules
 
-A text file listing all images needed in the air-gapped environment:
-```
-kindest/node:v1.31.0
-registry.k8s.io/pause:3.9
-registry.k8s.io/coredns/coredns:v1.11.1
-registry.k8s.io/etcd:3.5.12-0
-registry.k8s.io/kube-apiserver:v1.31.0
-registry.k8s.io/kube-controller-manager:v1.31.0
-registry.k8s.io/kube-scheduler:v1.31.0
-registry.k8s.io/kube-proxy:v1.31.0
-```
+When open, the VM can reach the internet. When closed (default), only DNS and host services are reachable.
 
-Users add their application images to this list before running setup.
+### 6. Image Management
 
-## Workflow
+- **`scripts/load-images.sh`** — reads `images/required.txt`, pulls each image, retags as `localhost:5000/<image>`, pushes to registry
+- **`scripts/push-image.sh`** — same flow for a single image passed as argument
 
-### First-time setup
-```bash
-# 1. Start registry and load images (on host, with internet)
-./scripts/setup.sh
-
-# 2. SSH into VM
-multipass shell airgap-lab
-
-# 3. Verify isolation
-./scripts/verify.sh
-
-# 4. Create kind cluster
-cd /opt/airgap-lab
-./scripts/create-kind.sh
-```
-
-### Day-to-day usage
-```bash
-# Add a new image to the air-gapped environment
-# (run on host, with internet access to host registry)
-./scripts/push-image.sh myapp:v1.2.3
-
-# Inside VM, pull it
-docker pull <HOST_IP>:5000/myapp:v1.2.3
-```
-
-### Testing a new build artifact
-```bash
-# On host: push your built image to the local registry
-docker tag myapp:latest localhost:5000/myapp:latest
-docker push localhost:5000/myapp:latest
-
-# In VM: deploy it
-kubectl set image deployment/myapp myapp=<HOST_IP>:5000/myapp:latest
-```
+Both run on the host and push to `localhost:5000`.
 
 ## Project Structure
 
 ```
 airgap-lab/
-├── README.md
-├── IMPLEMENTATION_GUIDE.md
-├── CLAUDE.md                  # Claude Code instructions for this project
-├── registry/
-│   └── docker-compose.yml     # Local registry setup
-├── vm/
-│   ├── cloud-init.yaml        # VM provisioning config
-│   └── create-vm.sh           # VM creation script
-├── kind/
-│   └── kind-config.yaml       # Kind cluster config for air-gap
+├── config.sh                   # Central configuration
+├── docker-compose.yaml         # Registry + apt-cache services
+├── .gitignore
 ├── images/
-│   └── required.txt           # List of images to pre-load
+│   └── required.txt            # Images to pre-load (one per line)
+├── vm/
+│   ├── cloud-init.yaml         # Cloud-init user-data template
+│   ├── network-config.yaml     # VM static IP config template
+│   ├── network.xml             # Libvirt network definition template
+│   ├── create-vm.sh            # VM creation script (virt-install)
+│   ├── cache/                  # Downloaded cloud images (gitignored)
+│   └── disks/                  # VM disk images (gitignored)
 └── scripts/
-    ├── setup.sh               # Full environment setup
+    ├── setup.sh                # Full environment setup
     ├── teardown.sh             # Full environment teardown
-    ├── lockdown.sh             # Apply firewall rules in VM
-    ├── unlock.sh               # Remove firewall rules in VM
+    ├── internet.sh             # Toggle internet access (sudo)
     ├── verify.sh               # Verify air-gap isolation
     ├── load-images.sh          # Bulk load images to registry
-    ├── push-image.sh           # Push single image to registry
-    └── create-kind.sh          # Create kind cluster in VM
+    └── push-image.sh           # Push single image to registry
 ```
 
-## Open Questions / Future Enhancements
+## Workflow
 
-- **TLS for registry:** Add self-signed CA to simulate corporate PKI
-- **Egress whitelisting:** Add ability to whitelist specific external IPs (not just registry) to simulate corporate proxy/firewall rules
-- **Minikube support:** Alternative to kind, may need different registry mirror config
-- **Nested VMs:** If testing kata-containers or other VM-based runtimes, need KVM passthrough in multipass (`multipass launch --mount` or libvirt)
-- **Helm chart mirror:** ChartMuseum or similar for air-gapped Helm chart distribution
-- **APT mirror:** For installing packages inside the VM without internet (currently handled by cloud-init at provision time before lockdown)
+### Setup
+
+```bash
+./scripts/setup.sh
+```
+
+Steps:
+1. Downloads Ubuntu 24.04 cloud image (cached in `vm/cache/`)
+2. Creates libvirt network `airgap-lab` (bridge `airgap-br0`)
+3. Creates VM with `virt-install` (only attached to `airgap-br0`)
+4. Starts registry + apt-cache via `docker compose`
+5. Loads images from `images/required.txt` into registry
+
+### Verify
+
+```bash
+./scripts/verify.sh
+```
+
+Checks:
+- Internet access is blocked (curl to google.com fails)
+- DNS resolution works (nslookup google.com succeeds)
+- `registry.airgap` resolves to bridge IP
+- Registry API is accessible
+
+### Day-to-day
+
+```bash
+# Push image to registry (from host)
+./scripts/push-image.sh myapp:v1.2.3
+
+# SSH into the VM
+ssh ubuntu@10.99.0.10
+
+# Inside VM: pull from registry
+docker pull registry.airgap:5000/myapp:v1.2.3
+
+# Inside VM: install packages (via apt proxy)
+sudo apt-get install -y vim
+
+# Temporarily allow internet (from host)
+sudo ./scripts/internet.sh open
+# ... do work ...
+sudo ./scripts/internet.sh close
+```
+
+### Teardown
+
+```bash
+./scripts/teardown.sh
+```
+
+Removes VM, network, and stops services. Optionally removes data volumes.
+
+## Prerequisites
+
+- **libvirt** + **QEMU** + **virt-install** — VM management
+- **cloud-image-utils** (`cloud-localds`) — cloud-init seed ISO generation
+- **Docker** with compose — registry and apt-cache
+- User must be in the `libvirt` group (`sudo usermod -aG libvirt $USER`)
