@@ -6,6 +6,7 @@
     <forwarder addr='DNS_FORWARDER_2'/>
     <host ip='BRIDGE_HOST_IP'>
       <hostname>REGISTRY_HOSTNAME</hostname>
+      <hostname>APT_CACHE_HOSTNAME</hostname>
     </host>
   </dns>
   <ip address='BRIDGE_HOST_IP' netmask='255.255.255.0'>

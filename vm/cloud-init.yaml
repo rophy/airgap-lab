@@ -1,6 +1,12 @@
 #cloud-config
 
 ssh_pwauth: true
+
+# Apt proxy — routes through host's apt-cacher-ng
+apt:
+  http_proxy: http://APT_CACHE_HOSTNAME:APT_CACHE_PORT
+  https_proxy: http://APT_CACHE_HOSTNAME:APT_CACHE_PORT
+
 package_update: true
 
 packages:

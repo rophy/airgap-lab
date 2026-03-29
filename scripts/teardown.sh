@@ -31,17 +31,17 @@ else
   echo "  Network not found, skipping."
 fi
 
-# Stop registry
-echo "Stopping local registry..."
+# Stop services
+echo "Stopping registry and apt cache..."
 docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" down
 
 echo ""
-read -rp "Remove registry data volume? (y/N) " answer
+read -rp "Remove data volumes (registry + apt cache)? (y/N) " answer
 if [[ "${answer}" =~ ^[Yy]$ ]]; then
-  docker volume rm airgap-lab_registry-data 2>/dev/null || true
-  echo "Registry volume removed."
+  docker volume rm airgap-lab_registry-data airgap-lab_apt-cache-data 2>/dev/null || true
+  echo "Volumes removed."
 else
-  echo "Registry volume preserved."
+  echo "Volumes preserved."
 fi
 
 echo ""

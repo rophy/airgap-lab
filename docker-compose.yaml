@@ -8,5 +8,15 @@ services:
       - registry-data:/var/lib/registry
     restart: unless-stopped
 
+  apt-cache:
+    image: sameersbn/apt-cacher-ng:3.7.4-20220421
+    container_name: airgap-apt-cache
+    ports:
+      - "3142:3142"
+    volumes:
+      - apt-cache-data:/var/cache/apt-cacher-ng
+    restart: unless-stopped
+
 volumes:
   registry-data:
+  apt-cache-data:

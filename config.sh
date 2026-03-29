@@ -18,6 +18,10 @@ DNS_SERVER_2="${DNS_SERVER_2:-8.8.4.4}"
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
 REGISTRY_HOSTNAME="${REGISTRY_HOSTNAME:-registry.airgap}"
 
+# Apt cache proxy
+APT_CACHE_PORT="${APT_CACHE_PORT:-3142}"
+APT_CACHE_HOSTNAME="${APT_CACHE_HOSTNAME:-apt-proxy.airgap}"
+
 # VM resources
 VM_CPUS="${VM_CPUS:-1}"
 VM_MEMORY="${VM_MEMORY:-8192}"  # in MiB for virt-install
