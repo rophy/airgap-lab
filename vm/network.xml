@@ -1,0 +1,10 @@
+<network>
+  <name>NETWORK_NAME</name>
+  <bridge name='BRIDGE_NAME' stp='on' delay='0'/>
+  <dns>
+    <forwarder addr='DNS_FORWARDER_1'/>
+    <forwarder addr='DNS_FORWARDER_2'/>
+  </dns>
+  <ip address='BRIDGE_HOST_IP' netmask='255.255.255.0'>
+  </ip>
+</network>

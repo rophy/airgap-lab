@@ -1,5 +1,6 @@
 #cloud-config
 
+ssh_pwauth: true
 package_update: true
 
 packages:
@@ -8,12 +9,13 @@ packages:
   - jq
 
 users:
+  - default
   - name: ubuntu
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false
-    # password: ubuntu (hashed)
-    passwd: $6$rounds=4096$saltsalt$Yjz1U1q6Gp5FhkGIHnMmQqXlEqKpq9kJxOdE8v1MzVQqr3TKxGzGiEPaEMq6gSkvYmz0iFhKMg.GfHFmqMOj0
+    plain_text_passwd: ubuntu
+    ssh_authorized_keys: SSH_AUTHORIZED_KEYS
 
 runcmd:
   - systemctl enable docker

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Creates the libvirt VM. Expects to be run as root (via sudo).
+# Creates the libvirt VM. No sudo needed (user must be in libvirt group).
 # The base cloud image must already exist at VM_IMAGE_CACHE.
 #
 set -euo pipefail
@@ -11,6 +11,8 @@ source "${SCRIPT_DIR}/../config.sh"
 CACHED_IMAGE="${VM_IMAGE_CACHE}/ubuntu-noble-cloudimg-amd64.img"
 DISK_IMAGE="${VM_LIBVIRT_DIR}/${VM_NAME}.qcow2"
 SEED_ISO="${VM_LIBVIRT_DIR}/${VM_NAME}-seed.iso"
+
+mkdir -p "${VM_LIBVIRT_DIR}"
 
 if [[ ! -f "${CACHED_IMAGE}" ]]; then
   echo "Error: cloud image not found at ${CACHED_IMAGE}"
@@ -27,9 +29,20 @@ qemu-img resize "${DISK_IMAGE}" "${VM_DISK}G"
 CLOUD_INIT_RENDERED="/tmp/airgap-cloud-init-${VM_NAME}.yaml"
 NETWORK_CONFIG_RENDERED="/tmp/airgap-network-config-${VM_NAME}.yaml"
 
+# Find host user's SSH public key
+CALLER_HOME=$(eval echo "~${SUDO_USER:-$USER}")
+SSH_PUBKEY="${CALLER_HOME}/.ssh/id_ed25519.pub"
+[[ ! -f "${SSH_PUBKEY}" ]] && SSH_PUBKEY="${CALLER_HOME}/.ssh/id_rsa.pub"
+SSH_KEY_VALUE="[]"
+if [[ -f "${SSH_PUBKEY}" ]]; then
+  echo "  Injecting SSH key from ${SSH_PUBKEY}"
+  SSH_KEY_VALUE="[\"$(cat "${SSH_PUBKEY}")\"]"
+fi
+
 sed \
   -e "s|BRIDGE_HOST_IP|${BRIDGE_HOST_IP}|g" \
   -e "s|REGISTRY_PORT|${REGISTRY_PORT}|g" \
+  -e "s|SSH_AUTHORIZED_KEYS|${SSH_KEY_VALUE}|g" \
   "${SCRIPT_DIR}/cloud-init.yaml" > "${CLOUD_INIT_RENDERED}"
 
 sed \
@@ -43,10 +56,10 @@ cloud-localds -N "${NETWORK_CONFIG_RENDERED}" "${SEED_ISO}" "${CLOUD_INIT_RENDER
 
 rm -f "${CLOUD_INIT_RENDERED}" "${NETWORK_CONFIG_RENDERED}"
 
-# Create VM with only the airgap bridge network
+# Create VM with only the airgap network
 echo "Creating VM: ${VM_NAME}"
 echo "  CPUs: ${VM_CPUS}, Memory: ${VM_MEMORY}M, Disk: ${VM_DISK}G"
-echo "  Network: ${BRIDGE_NAME} (${BRIDGE_VM_IP})"
+echo "  Network: ${NETWORK_NAME} (${BRIDGE_VM_IP})"
 
 virt-install \
   --name "${VM_NAME}" \
@@ -54,7 +67,7 @@ virt-install \
   --memory "${VM_MEMORY}" \
   --disk "path=${DISK_IMAGE},format=qcow2" \
   --disk "path=${SEED_ISO},device=cdrom" \
-  --network "bridge=${BRIDGE_NAME},model=virtio" \
+  --network "network=${NETWORK_NAME},model=virtio" \
   --os-variant ubuntu24.04 \
   --graphics none \
   --noautoconsole \

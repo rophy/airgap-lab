@@ -10,28 +10,28 @@ echo ""
 # Remove internet NAT if present (sudo)
 sudo "${SCRIPT_DIR}/internet.sh" close 2>/dev/null || true
 
-# Destroy VM (sudo)
+# Destroy VM
 echo "Deleting VM '${VM_NAME}'..."
 if virsh dominfo "${VM_NAME}" &>/dev/null; then
-  sudo virsh destroy "${VM_NAME}" 2>/dev/null || true
-  sudo virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
-  sudo rm -f "${VM_LIBVIRT_DIR}/${VM_NAME}-seed.iso"
+  virsh destroy "${VM_NAME}" 2>/dev/null || true
+  virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
+  rm -f "${VM_LIBVIRT_DIR}/${VM_NAME}-seed.iso"
   echo "  VM removed."
 else
   echo "  VM not found, skipping."
 fi
 
-# Remove bridge (sudo)
-echo "Removing bridge ${BRIDGE_NAME}..."
-if ip link show "${BRIDGE_NAME}" &>/dev/null; then
-  sudo ip link set "${BRIDGE_NAME}" down
-  sudo ip link delete "${BRIDGE_NAME}"
-  echo "  Bridge removed."
+# Remove libvirt network
+echo "Removing network ${NETWORK_NAME}..."
+if virsh net-info "${NETWORK_NAME}" &>/dev/null; then
+  virsh net-destroy "${NETWORK_NAME}" 2>/dev/null || true
+  virsh net-undefine "${NETWORK_NAME}" 2>/dev/null || true
+  echo "  Network removed."
 else
-  echo "  Bridge not found, skipping."
+  echo "  Network not found, skipping."
 fi
 
-# Stop registry (no sudo)
+# Stop registry
 echo "Stopping local registry..."
 docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" down
 
