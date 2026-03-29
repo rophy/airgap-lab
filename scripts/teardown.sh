@@ -2,11 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}/.."
-VM_NAME="${1:-airgap-lab}"
+source "${SCRIPT_DIR}/../config.sh"
 
 echo "=== Air-Gap Lab Teardown ==="
 echo ""
+
+# Remove firewall rules
+echo "Removing firewall rules..."
+sudo "${SCRIPT_DIR}/unlock.sh" 2>/dev/null || echo "  No rules to remove."
 
 # Delete multipass VM
 echo "Deleting VM '${VM_NAME}'..."
@@ -14,7 +17,17 @@ multipass delete "${VM_NAME}" --purge 2>/dev/null || echo "  VM not found, skipp
 
 # Stop registry
 echo "Stopping local registry..."
-docker compose -f "${PROJECT_DIR}/docker-compose.yaml" down
+docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" down
+
+# Remove bridge
+echo "Removing bridge ${BRIDGE_NAME}..."
+if ip link show "${BRIDGE_NAME}" &>/dev/null; then
+  sudo ip link set "${BRIDGE_NAME}" down
+  sudo ip link delete "${BRIDGE_NAME}"
+  echo "  Bridge removed."
+else
+  echo "  Bridge not found, skipping."
+fi
 
 echo ""
 read -rp "Remove registry data volume? (y/N) " answer

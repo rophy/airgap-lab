@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_LIST="${1:-images/required.txt}"
-REGISTRY="${AIRGAP_REGISTRY:-localhost:5000}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../config.sh"
+
+IMAGE_LIST="${1:-${SCRIPT_DIR}/../images/required.txt}"
+REGISTRY="localhost:${REGISTRY_PORT}"
 
 if [[ ! -f "${IMAGE_LIST}" ]]; then
   echo "Error: image list not found: ${IMAGE_LIST}"
@@ -15,14 +18,10 @@ while IFS= read -r image; do
 
   echo "==> Processing: ${image}"
 
-  # Pull from upstream
   docker pull "${image}"
 
-  # Retag for local registry
   local_tag="${REGISTRY}/${image}"
   docker tag "${image}" "${local_tag}"
-
-  # Push to local registry
   docker push "${local_tag}"
 
   echo "==> Pushed: ${local_tag}"

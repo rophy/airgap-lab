@@ -6,7 +6,6 @@ packages:
   - docker.io
   - curl
   - jq
-  - iptables
 
 runcmd:
   # Enable and start docker
@@ -15,12 +14,11 @@ runcmd:
   - usermod -aG docker ubuntu
 
   # Configure Docker daemon to use host registry as insecure
+  # BRIDGE_HOST_IP is replaced by create-vm.sh at launch time
   - |
-    HOST_IP=$(ip route | grep default | awk '{print $3}')
     cat > /etc/docker/daemon.json <<EOF
     {
-      "insecure-registries": ["${HOST_IP}:5000"],
-      "registry-mirrors": ["http://${HOST_IP}:5000"]
+      "insecure-registries": ["BRIDGE_HOST_IP:REGISTRY_PORT"]
     }
     EOF
     systemctl restart docker

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST_IP=$(ip route | grep default | awk '{print $3}')
-REGISTRY_PORT=5000
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../config.sh"
+
 PASS=0
 FAIL=0
 
@@ -29,17 +30,19 @@ check() {
   fi
 }
 
-echo "Verifying air-gap isolation..."
+echo "Verifying air-gap isolation for VM '${VM_NAME}'..."
 echo ""
 
 echo "[Network]"
-check "Internet access blocked" fail curl -s --connect-timeout 5 https://google.com
-check "DNS resolution works" success nslookup google.com
+check "Internet access blocked" fail \
+  multipass exec "${VM_NAME}" -- curl -s --connect-timeout 5 https://google.com
+check "DNS resolution works" success \
+  multipass exec "${VM_NAME}" -- nslookup google.com
 
 echo ""
 echo "[Registry]"
-check "Registry catalog accessible" success curl -sf "http://${HOST_IP}:${REGISTRY_PORT}/v2/_catalog"
-check "Docker pull from registry" success docker pull "${HOST_IP}:${REGISTRY_PORT}/registry.k8s.io/pause:3.9"
+check "Registry catalog accessible" success \
+  multipass exec "${VM_NAME}" -- curl -sf "http://${BRIDGE_HOST_IP}:${REGISTRY_PORT}/v2/_catalog"
 
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

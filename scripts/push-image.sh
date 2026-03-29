@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../config.sh"
+
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <image:tag>"
   echo "Example: $0 nginx:1.25"
@@ -8,7 +11,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 IMAGE="$1"
-REGISTRY="${AIRGAP_REGISTRY:-localhost:5000}"
+REGISTRY="localhost:${REGISTRY_PORT}"
 LOCAL_TAG="${REGISTRY}/${IMAGE}"
 
 echo "Pulling ${IMAGE}..."
