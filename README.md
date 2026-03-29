@@ -5,18 +5,24 @@ Air-gapped environment lab for testing container workloads without internet acce
 ## Overview
 
 Simulates a corporate air-gapped environment using:
-- **Multipass** Ubuntu VM with network isolation
+- **libvirt/QEMU** VM attached only to an isolated bridge network
 - **Local Docker registry** on host (simulates corporate registry)
-- **Dedicated bridge network** (`airgap-br0`) with host-side firewall enforcement
+- **Dedicated bridge** (`airgap-br0`) — VM has no internet path by design
+
+## Prerequisites
+
+- libvirt, QEMU, virt-install
+- cloud-image-utils (`cloud-localds`)
+- Docker with compose
 
 ## Quick Start
 
 ```bash
-# Set up everything (bridge, registry, VM, firewall)
+# Set up everything (bridge, VM, registry)
 ./scripts/setup.sh
 
 # SSH into the isolated VM
-multipass shell airgap-lab
+ssh ubuntu@10.99.0.10   # password: ubuntu
 
 # Verify air-gap isolation (from host)
 ./scripts/verify.sh
@@ -28,13 +34,13 @@ Edit `config.sh` to customize:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VM_NAME` | `airgap-lab` | Multipass VM name |
+| `VM_NAME` | `airgap-lab` | libvirt VM name |
 | `BRIDGE_NAME` | `airgap-br0` | Dedicated bridge interface |
 | `BRIDGE_HOST_IP` | `10.99.0.1` | Host IP on the bridge |
 | `REGISTRY_PORT` | `5000` | Docker registry port |
 | `VM_CPUS` | `1` | VM CPU cores |
-| `VM_MEMORY` | `8G` | VM memory |
-| `VM_DISK` | `40G` | VM disk size |
+| `VM_MEMORY` | `8192` | VM memory (MiB) |
+| `VM_DISK` | `40` | VM disk (GiB) |
 
 ## Project Structure
 
@@ -46,12 +52,12 @@ airgap-lab/
 │   └── required.txt         # Images to pre-load
 ├── vm/
 │   ├── cloud-init.yaml      # VM provisioning config
-│   └── create-vm.sh         # VM creation script
+│   ├── network-config.yaml  # Static IP on airgap bridge
+│   └── create-vm.sh         # VM creation (virt-install)
 └── scripts/
     ├── setup.sh             # Full environment setup
     ├── teardown.sh          # Full environment teardown
-    ├── lockdown.sh          # Apply host-side firewall rules
-    ├── unlock.sh            # Remove firewall rules
+    ├── internet.sh          # Toggle internet: open/close
     ├── verify.sh            # Verify air-gap isolation
     ├── load-images.sh       # Bulk load images to registry
     └── push-image.sh        # Push single image to registry
@@ -66,9 +72,9 @@ airgap-lab/
 # Inside VM: pull it
 docker pull 10.99.0.1:5000/myapp:v1.2.3
 
-# Temporarily disable air-gap (from host)
-sudo ./scripts/unlock.sh
+# Temporarily allow internet (e.g., to install packages)
+sudo ./scripts/internet.sh open
 
-# Re-enable air-gap
-sudo ./scripts/lockdown.sh
+# Restore air-gap
+sudo ./scripts/internet.sh close
 ```

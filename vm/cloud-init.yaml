@@ -7,14 +7,21 @@ packages:
   - curl
   - jq
 
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    # password: ubuntu (hashed)
+    passwd: $6$rounds=4096$saltsalt$Yjz1U1q6Gp5FhkGIHnMmQqXlEqKpq9kJxOdE8v1MzVQqr3TKxGzGiEPaEMq6gSkvYmz0iFhKMg.GfHFmqMOj0
+
 runcmd:
-  # Enable and start docker
   - systemctl enable docker
   - systemctl start docker
   - usermod -aG docker ubuntu
 
   # Configure Docker daemon to use host registry as insecure
-  # BRIDGE_HOST_IP is replaced by create-vm.sh at launch time
+  # BRIDGE_HOST_IP and REGISTRY_PORT are replaced at launch time
   - |
     cat > /etc/docker/daemon.json <<EOF
     {

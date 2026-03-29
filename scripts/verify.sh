@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../config.sh"
 
+BRIDGE_VM_IP="${BRIDGE_VM_IP:-10.99.0.10}"
+SSH="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@${BRIDGE_VM_IP}"
+
 PASS=0
 FAIL=0
 
@@ -35,14 +38,14 @@ echo ""
 
 echo "[Network]"
 check "Internet access blocked" fail \
-  multipass exec "${VM_NAME}" -- curl -s --connect-timeout 5 https://google.com
-check "DNS resolution works" success \
-  multipass exec "${VM_NAME}" -- nslookup google.com
+  ${SSH} "curl -s --connect-timeout 5 https://google.com"
+check "DNS resolution blocked" fail \
+  ${SSH} "nslookup google.com"
 
 echo ""
 echo "[Registry]"
 check "Registry catalog accessible" success \
-  multipass exec "${VM_NAME}" -- curl -sf "http://${BRIDGE_HOST_IP}:${REGISTRY_PORT}/v2/_catalog"
+  ${SSH} "curl -sf http://${BRIDGE_HOST_IP}:${REGISTRY_PORT}/v2/_catalog"
 
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

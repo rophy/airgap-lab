@@ -7,8 +7,18 @@ source "${SCRIPT_DIR}/../config.sh"
 echo "=== Air-Gap Lab Setup ==="
 echo ""
 
-# Step 1: Create dedicated bridge network
-echo "[1/5] Creating bridge network ${BRIDGE_NAME}..."
+# Step 1: Download cloud image (no sudo)
+CACHED_IMAGE="${VM_IMAGE_CACHE}/ubuntu-noble-cloudimg-amd64.img"
+echo "[1/5] Downloading Ubuntu cloud image..."
+mkdir -p "${VM_IMAGE_CACHE}"
+if [[ -f "${CACHED_IMAGE}" ]]; then
+  echo "  Already cached, skipping."
+else
+  wget -q --show-progress -O "${CACHED_IMAGE}" "${VM_IMAGE_URL}"
+fi
+
+# Step 2: Create bridge (sudo)
+echo "[2/5] Creating bridge network ${BRIDGE_NAME}..."
 if ip link show "${BRIDGE_NAME}" &>/dev/null; then
   echo "  Bridge already exists, skipping."
 else
@@ -18,24 +28,23 @@ else
   echo "  Bridge ${BRIDGE_NAME} created with IP ${BRIDGE_HOST_IP}."
 fi
 
-# Step 2: Start local registry
-echo "[2/5] Starting local registry..."
+# Step 3: Create VM (sudo)
+echo "[3/5] Creating VM..."
+sudo "${SCRIPT_DIR}/../vm/create-vm.sh"
+
+# Step 4: Start registry (no sudo)
+echo "[4/5] Starting local registry..."
 docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" up -d
 
-# Step 3: Load images into registry
-echo "[3/5] Loading images into registry..."
+# Step 5: Load images (no sudo)
+echo "[5/5] Loading images into registry..."
 "${SCRIPT_DIR}/load-images.sh" "${SCRIPT_DIR}/../images/required.txt"
-
-# Step 4: Create multipass VM
-echo "[4/5] Creating multipass VM..."
-"${SCRIPT_DIR}/../vm/create-vm.sh"
-
-# Step 5: Apply firewall lockdown
-echo "[5/5] Applying air-gap lockdown..."
-sudo "${SCRIPT_DIR}/lockdown.sh"
 
 echo ""
 echo "=== Setup Complete ==="
 echo ""
+echo "VM is air-gapped by default (no internet path)."
+echo ""
 echo "Next steps:"
-echo "  multipass shell ${VM_NAME}    # SSH into the VM"
+echo "  ssh ubuntu@${BRIDGE_VM_IP}     # SSH into the VM (password: ubuntu)"
+echo "  ./scripts/verify.sh             # Verify isolation"

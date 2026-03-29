@@ -7,19 +7,21 @@ source "${SCRIPT_DIR}/../config.sh"
 echo "=== Air-Gap Lab Teardown ==="
 echo ""
 
-# Remove firewall rules
-echo "Removing firewall rules..."
-sudo "${SCRIPT_DIR}/unlock.sh" 2>/dev/null || echo "  No rules to remove."
+# Remove internet NAT if present (sudo)
+sudo "${SCRIPT_DIR}/internet.sh" close 2>/dev/null || true
 
-# Delete multipass VM
+# Destroy VM (sudo)
 echo "Deleting VM '${VM_NAME}'..."
-multipass delete "${VM_NAME}" --purge 2>/dev/null || echo "  VM not found, skipping."
+if virsh dominfo "${VM_NAME}" &>/dev/null; then
+  sudo virsh destroy "${VM_NAME}" 2>/dev/null || true
+  sudo virsh undefine "${VM_NAME}" --remove-all-storage 2>/dev/null || true
+  sudo rm -f "${VM_LIBVIRT_DIR}/${VM_NAME}-seed.iso"
+  echo "  VM removed."
+else
+  echo "  VM not found, skipping."
+fi
 
-# Stop registry
-echo "Stopping local registry..."
-docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" down
-
-# Remove bridge
+# Remove bridge (sudo)
 echo "Removing bridge ${BRIDGE_NAME}..."
 if ip link show "${BRIDGE_NAME}" &>/dev/null; then
   sudo ip link set "${BRIDGE_NAME}" down
@@ -28,6 +30,10 @@ if ip link show "${BRIDGE_NAME}" &>/dev/null; then
 else
   echo "  Bridge not found, skipping."
 fi
+
+# Stop registry (no sudo)
+echo "Stopping local registry..."
+docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" down
 
 echo ""
 read -rp "Remove registry data volume? (y/N) " answer
