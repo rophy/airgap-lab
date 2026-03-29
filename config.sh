@@ -14,8 +14,9 @@ BRIDGE_VM_IP="${BRIDGE_VM_IP:-10.99.0.10}"
 DNS_SERVER_1="${DNS_SERVER_1:-8.8.8.8}"
 DNS_SERVER_2="${DNS_SERVER_2:-8.8.4.4}"
 
-# Registry (runs on host, accessible via bridge IP)
+# Registry (runs on host, accessible via hostname from VM)
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
+REGISTRY_HOSTNAME="${REGISTRY_HOSTNAME:-registry.airgap}"
 
 # VM resources
 VM_CPUS="${VM_CPUS:-1}"

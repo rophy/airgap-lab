@@ -23,11 +23,11 @@ runcmd:
   - usermod -aG docker ubuntu
 
   # Configure Docker daemon to use host registry as insecure
-  # BRIDGE_HOST_IP and REGISTRY_PORT are replaced at launch time
+  # REGISTRY_HOSTNAME and REGISTRY_PORT are replaced at launch time
   - |
     cat > /etc/docker/daemon.json <<EOF
     {
-      "insecure-registries": ["BRIDGE_HOST_IP:REGISTRY_PORT"]
+      "insecure-registries": ["REGISTRY_HOSTNAME:REGISTRY_PORT"]
     }
     EOF
     systemctl restart docker

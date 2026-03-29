@@ -70,7 +70,7 @@ airgap-lab/
 ./scripts/push-image.sh myapp:v1.2.3
 
 # Inside VM: pull it
-docker pull 10.99.0.1:5000/myapp:v1.2.3
+docker pull registry.airgap:5000/myapp:v1.2.3
 
 # Temporarily allow internet (e.g., to install packages)
 sudo ./scripts/internet.sh open

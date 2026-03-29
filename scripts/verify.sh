@@ -49,8 +49,10 @@ check "DNS resolution works" success \
   timeout 10 ${SSH} "timeout 5 nslookup google.com"
 
 echo "[Registry]"
+check "Registry hostname resolves" success \
+  timeout 10 ${SSH} "timeout 5 nslookup ${REGISTRY_HOSTNAME}"
 check "Registry catalog accessible" success \
-  ${SSH} "curl -sf http://${BRIDGE_HOST_IP}:${REGISTRY_PORT}/v2/_catalog"
+  ${SSH} "curl -sf http://${REGISTRY_HOSTNAME}:${REGISTRY_PORT}/v2/_catalog"
 
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ ${FAIL} -eq 0 ]] && echo "All checks passed!" || exit 1

@@ -29,6 +29,7 @@ else
     -e "s|BRIDGE_HOST_IP|${BRIDGE_HOST_IP}|g" \
     -e "s|DNS_FORWARDER_1|${DNS_SERVER_1}|g" \
     -e "s|DNS_FORWARDER_2|${DNS_SERVER_2}|g" \
+    -e "s|REGISTRY_HOSTNAME|${REGISTRY_HOSTNAME}|g" \
     "${SCRIPT_DIR}/../vm/network.xml" > "${NETWORK_XML_RENDERED}"
   virsh net-define "${NETWORK_XML_RENDERED}"
   virsh net-start "${NETWORK_NAME}"

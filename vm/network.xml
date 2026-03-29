@@ -4,6 +4,9 @@
   <dns>
     <forwarder addr='DNS_FORWARDER_1'/>
     <forwarder addr='DNS_FORWARDER_2'/>
+    <host ip='BRIDGE_HOST_IP'>
+      <hostname>REGISTRY_HOSTNAME</hostname>
+    </host>
   </dns>
   <ip address='BRIDGE_HOST_IP' netmask='255.255.255.0'>
   </ip>
