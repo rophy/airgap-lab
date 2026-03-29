@@ -1,0 +1,4 @@
+# Add images to pre-load into the local registry, one per line.
+# Example:
+# nginx:1.25
+# myapp:v1.2.3

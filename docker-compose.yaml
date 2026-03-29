@@ -1,0 +1,12 @@
+services:
+  registry:
+    image: registry:2
+    container_name: airgap-registry
+    ports:
+      - "5000:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    restart: unless-stopped
+
+volumes:
+  registry-data:

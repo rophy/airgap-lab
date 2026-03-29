@@ -1,0 +1,26 @@
+#cloud-config
+
+package_update: true
+
+packages:
+  - docker.io
+  - curl
+  - jq
+  - iptables
+
+runcmd:
+  # Enable and start docker
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker ubuntu
+
+  # Configure Docker daemon to use host registry as insecure
+  - |
+    HOST_IP=$(ip route | grep default | awk '{print $3}')
+    cat > /etc/docker/daemon.json <<EOF
+    {
+      "insecure-registries": ["${HOST_IP}:5000"],
+      "registry-mirrors": ["http://${HOST_IP}:5000"]
+    }
+    EOF
+    systemctl restart docker
