@@ -27,6 +27,12 @@ VM_CPUS="${VM_CPUS:-1}"
 VM_MEMORY="${VM_MEMORY:-8192}"  # in MiB for virt-install
 VM_DISK="${VM_DISK:-40}"        # in GiB for virt-install
 
+# AI Gateway (reverse proxy for LLM API access from VM)
+AI_GATEWAY_HOSTNAME="${AI_GATEWAY_HOSTNAME:-ai-gateway.airgap}"
+AI_GATEWAY_PORT="${AI_GATEWAY_PORT:-8080}"
+LLM_API_BASE_URL="${LLM_API_BASE_URL:-https://api.anthropic.com}"
+LLM_API_KEY_FILE="${LLM_API_KEY_FILE:-${HOME}/.airgap-lab/api-key}"
+
 # Ubuntu cloud image
 VM_IMAGE_URL="${VM_IMAGE_URL:-https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img}"
 # Resolve project root from config.sh location
