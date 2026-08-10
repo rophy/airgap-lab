@@ -119,6 +119,45 @@ sudo ./scripts/internet.sh open
 sudo ./scripts/internet.sh close
 ```
 
+## AI Gateway (LLM API Proxy)
+
+The lab includes an AI gateway that proxies LLM API requests from the VM to an upstream provider. The gateway injects the API key so the VM never sees it.
+
+### Setup
+
+1. Create an API key file on the host:
+
+```bash
+mkdir -p ~/.airgap-lab
+echo "your-api-key" > ~/.airgap-lab/api-key
+chmod 600 ~/.airgap-lab/api-key
+```
+
+2. Optionally configure the upstream in `config.sh`:
+
+```bash
+LLM_API_BASE_URL="https://api.anthropic.com"  # default
+```
+
+3. Run `./scripts/setup.sh` — the gateway starts automatically.
+
+### Using opencode in the VM
+
+```bash
+ssh ubuntu@10.99.0.10
+opencode
+```
+
+opencode is pre-configured to use the gateway. The API key is injected by the gateway — no key configuration needed inside the VM.
+
+### Customizing the whitelist
+
+Edit `config/egress-whitelist.txt` to add or remove allowed upstream domains (one per line). Restart the gateway:
+
+```bash
+docker compose restart ai-gateway
+```
+
 ## Configuration
 
 Edit `config.sh` to customize. All values are overridable via environment variables.
@@ -136,6 +175,10 @@ Edit `config.sh` to customize. All values are overridable via environment variab
 | `VM_CPUS` | `1` | VM CPU cores |
 | `VM_MEMORY` | `8192` | VM memory (MiB) |
 | `VM_DISK` | `40` | VM disk (GiB) |
+| `AI_GATEWAY_HOSTNAME` | `ai-gateway.airgap` | AI gateway hostname |
+| `AI_GATEWAY_PORT` | `8080` | AI gateway port |
+| `LLM_API_BASE_URL` | `https://api.anthropic.com` | Upstream LLM API URL |
+| `LLM_API_KEY_FILE` | `~/.airgap-lab/api-key` | Path to API key file |
 
 ## Teardown
 
