@@ -31,6 +31,7 @@ else
     -e "s|DNS_FORWARDER_2|${DNS_SERVER_2}|g" \
     -e "s|REGISTRY_HOSTNAME|${REGISTRY_HOSTNAME}|g" \
     -e "s|APT_CACHE_HOSTNAME|${APT_CACHE_HOSTNAME}|g" \
+    -e "s|AI_GATEWAY_HOSTNAME|${AI_GATEWAY_HOSTNAME}|g" \
     "${SCRIPT_DIR}/../vm/network.xml" > "${NETWORK_XML_RENDERED}"
   virsh net-define "${NETWORK_XML_RENDERED}"
   virsh net-start "${NETWORK_NAME}"
