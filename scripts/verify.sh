@@ -54,5 +54,11 @@ check "Registry hostname resolves" success \
 check "Registry catalog accessible" success \
   ${SSH} "curl -sf http://${REGISTRY_HOSTNAME}:${REGISTRY_PORT}/v2/_catalog"
 
+echo "[AI Gateway]"
+check "Gateway health check" success \
+  ${SSH} "curl -sf http://${AI_GATEWAY_HOSTNAME}:${AI_GATEWAY_PORT}/health"
+check "opencode installed" success \
+  ${SSH} "which opencode"
+
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ ${FAIL} -eq 0 ]] && echo "All checks passed!" || exit 1
