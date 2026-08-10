@@ -32,14 +32,11 @@ sudo apt install skopeo
 All commands should be run from the repository root (`~/projects/airgap-lab`).
 
 ```bash
-# Set up everything (network, VM, registry, apt cache)
-./scripts/setup.sh
-
-# Verify air-gap isolation
-./scripts/verify.sh
-
-# SSH into the VM
-ssh ubuntu@10.99.0.10
+make setup     # Set up everything (network, VM, registry, apt cache)
+make status    # Check services and VM state
+make verify    # Verify air-gap isolation
+make ssh       # SSH into the VM
+make teardown  # Remove everything
 ```
 
 ## What Works Inside the VM
@@ -192,6 +189,7 @@ Removes VM, libvirt network, and stops services. Prompts to remove data volumes.
 
 ```
 airgap-lab/
+├── Makefile                    # Common commands (status, setup, ssh, etc.)
 ├── config.sh                   # Central configuration
 ├── docker-compose.yaml         # Registry + apt-cache
 ├── images/
