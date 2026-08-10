@@ -2,18 +2,6 @@
 
 ssh_pwauth: true
 
-# Apt proxy — routes through host's apt-cacher-ng
-apt:
-  http_proxy: http://APT_CACHE_HOSTNAME:APT_CACHE_PORT
-  https_proxy: http://APT_CACHE_HOSTNAME:APT_CACHE_PORT
-
-package_update: true
-
-packages:
-  - docker.io
-  - curl
-  - jq
-
 users:
   - default
   - name: ubuntu
@@ -22,25 +10,3 @@ users:
     lock_passwd: false
     plain_text_passwd: ubuntu
     ssh_authorized_keys: SSH_AUTHORIZED_KEYS
-
-write_files:
-  - path: /etc/profile.d/opencode.sh
-    content: |
-      export OPENAI_API_BASE=http://AI_GATEWAY_HOSTNAME:AI_GATEWAY_PORT/v1
-      export OPENAI_API_KEY=dummy
-    permissions: '0644'
-
-runcmd:
-  - systemctl enable docker
-  - systemctl start docker
-  - usermod -aG docker ubuntu
-
-  # Configure Docker daemon to use host registry as insecure
-  # REGISTRY_HOSTNAME and REGISTRY_PORT are replaced at launch time
-  - |
-    cat > /etc/docker/daemon.json <<EOF
-    {
-      "insecure-registries": ["REGISTRY_HOSTNAME:REGISTRY_PORT"]
-    }
-    EOF
-    systemctl restart docker

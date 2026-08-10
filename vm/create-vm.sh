@@ -40,12 +40,6 @@ if [[ -f "${SSH_PUBKEY}" ]]; then
 fi
 
 sed \
-  -e "s|REGISTRY_HOSTNAME|${REGISTRY_HOSTNAME}|g" \
-  -e "s|REGISTRY_PORT|${REGISTRY_PORT}|g" \
-  -e "s|APT_CACHE_HOSTNAME|${APT_CACHE_HOSTNAME}|g" \
-  -e "s|APT_CACHE_PORT|${APT_CACHE_PORT}|g" \
-  -e "s|AI_GATEWAY_HOSTNAME|${AI_GATEWAY_HOSTNAME}|g" \
-  -e "s|AI_GATEWAY_PORT|${AI_GATEWAY_PORT}|g" \
   -e "s|SSH_AUTHORIZED_KEYS|${SSH_KEY_VALUE}|g" \
   "${SCRIPT_DIR}/cloud-init.yaml" > "${CLOUD_INIT_RENDERED}"
 

@@ -39,26 +39,16 @@ else
   echo "  Network ${NETWORK_NAME} created (bridge: ${BRIDGE_NAME})."
 fi
 
-# Step 3: Create VM
-echo "[3/5] Creating VM..."
+# Step 3: Start services (registry, apt cache, AI gateway)
+echo "[3/5] Starting services..."
+docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" up -d
+
+# Step 4: Create and provision VM
+echo "[4/5] Creating VM..."
 "${SCRIPT_DIR}/../vm/create-vm.sh"
 
-# Step 3b: Install opencode in VM
-OPENCODE_BIN="$(which opencode 2>/dev/null || echo "${HOME}/.opencode/bin/opencode")"
-if [[ -f "${OPENCODE_BIN}" ]]; then
-  echo "[3b/5] Installing opencode in VM..."
-  scp -o StrictHostKeyChecking=no -o BatchMode=yes \
-    "${OPENCODE_BIN}" "ubuntu@${BRIDGE_VM_IP}:/tmp/opencode"
-  ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
-    "ubuntu@${BRIDGE_VM_IP}" "sudo mv /tmp/opencode /usr/local/bin/opencode && sudo chmod +x /usr/local/bin/opencode"
-  echo "  opencode installed."
-else
-  echo "[3b/5] Skipping opencode install (binary not found on host)."
-fi
-
-# Step 4: Start registry
-echo "[4/5] Starting local registry..."
-docker compose -f "${SCRIPT_DIR}/../docker-compose.yaml" up -d
+echo "  Provisioning VM..."
+"${SCRIPT_DIR}/provision-vm.sh"
 
 # Step 5: Load images
 echo "[5/5] Loading images into registry..."
