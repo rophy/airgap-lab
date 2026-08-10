@@ -23,6 +23,13 @@ users:
     plain_text_passwd: ubuntu
     ssh_authorized_keys: SSH_AUTHORIZED_KEYS
 
+write_files:
+  - path: /etc/profile.d/opencode.sh
+    content: |
+      export OPENAI_API_BASE=http://AI_GATEWAY_HOSTNAME:AI_GATEWAY_PORT/v1
+      export OPENAI_API_KEY=dummy
+    permissions: '0644'
+
 runcmd:
   - systemctl enable docker
   - systemctl start docker
