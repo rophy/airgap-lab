@@ -1,8 +1,8 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 API_KEY_FILE="${API_KEY_FILE:-/run/secrets/api-key}"
-if [[ ! -f "$API_KEY_FILE" ]]; then
+if [ ! -f "$API_KEY_FILE" ]; then
   echo "ERROR: API key file not found at $API_KEY_FILE"
   echo "Create it with: echo 'your-key' > ~/.airgap-lab/api-key"
   exit 1
@@ -11,12 +11,12 @@ fi
 export API_KEY
 API_KEY="$(cat "$API_KEY_FILE" | tr -d '[:space:]')"
 
-if [[ -z "$API_KEY" ]]; then
+if [ -z "$API_KEY" ]; then
   echo "ERROR: API key file is empty"
   exit 1
 fi
 
-if [[ -z "${LLM_API_BASE_URL:-}" ]]; then
+if [ -z "${LLM_API_BASE_URL:-}" ]; then
   echo "ERROR: LLM_API_BASE_URL is not set"
   exit 1
 fi

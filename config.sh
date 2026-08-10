@@ -29,8 +29,8 @@ VM_DISK="${VM_DISK:-40}"        # in GiB for virt-install
 
 # AI Gateway (reverse proxy for LLM API access from VM)
 AI_GATEWAY_HOSTNAME="${AI_GATEWAY_HOSTNAME:-ai-gateway.airgap}"
-AI_GATEWAY_PORT="${AI_GATEWAY_PORT:-8080}"
-LLM_API_BASE_URL="${LLM_API_BASE_URL:-https://api.anthropic.com}"
+AI_GATEWAY_PORT="${AI_GATEWAY_PORT:-8090}"
+LLM_API_BASE_URL="${LLM_API_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}"
 LLM_API_KEY_FILE="${LLM_API_KEY_FILE:-${HOME}/.airgap-lab/api-key}"
 
 # Ubuntu cloud image

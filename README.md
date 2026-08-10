@@ -136,7 +136,7 @@ chmod 600 ~/.airgap-lab/api-key
 2. Optionally configure the upstream in `config.sh`:
 
 ```bash
-LLM_API_BASE_URL="https://api.anthropic.com"  # default
+LLM_API_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai"  # default (Gemini)
 ```
 
 3. Run `./scripts/setup.sh` — the gateway starts automatically.
@@ -176,8 +176,8 @@ Edit `config.sh` to customize. All values are overridable via environment variab
 | `VM_MEMORY` | `8192` | VM memory (MiB) |
 | `VM_DISK` | `40` | VM disk (GiB) |
 | `AI_GATEWAY_HOSTNAME` | `ai-gateway.airgap` | AI gateway hostname |
-| `AI_GATEWAY_PORT` | `8080` | AI gateway port |
-| `LLM_API_BASE_URL` | `https://api.anthropic.com` | Upstream LLM API URL |
+| `AI_GATEWAY_PORT` | `8090` | AI gateway port |
+| `LLM_API_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Upstream LLM API URL |
 | `LLM_API_KEY_FILE` | `~/.airgap-lab/api-key` | Path to API key file |
 
 ## Teardown
