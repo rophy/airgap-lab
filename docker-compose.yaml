@@ -17,6 +17,20 @@ services:
       - apt-cache-data:/var/cache/apt-cacher-ng
     restart: unless-stopped
 
+  ai-gateway:
+    image: nginx:alpine
+    container_name: airgap-ai-gateway
+    ports:
+      - "${AI_GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./config/ai-gateway/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./config/ai-gateway/entrypoint.sh:/entrypoint.sh:ro
+      - ${LLM_API_KEY_FILE:-~/.airgap-lab/api-key}:/run/secrets/api-key:ro
+    environment:
+      - LLM_API_BASE_URL=${LLM_API_BASE_URL:-https://api.anthropic.com}
+    entrypoint: /entrypoint.sh
+    restart: unless-stopped
+
 volumes:
   registry-data:
   apt-cache-data:
